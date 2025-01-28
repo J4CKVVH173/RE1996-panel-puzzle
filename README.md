@@ -1,7 +1,7 @@
 # 3x3 Panel Puzzle Solver
 
 This Python program solves a 3x3 panel puzzle by finding valid combinations of commands that transform the initial panel state into a target state (all cells set to `1`).
-This usefully solves the puzzle in `Resident Eval (1996)`.
+This usefully solves the puzzle in `Resident Eval (1996)`. [The description of the problem](https://www.evilresource.com/resident-evil/guides/puzzles/solving-guardhouse-drug-storeroom-door-code).
 Each command toggles specific cells using XOR, and the solution brute-forces all possible command combinations up to a specified maximum length.
 
 ## Features
