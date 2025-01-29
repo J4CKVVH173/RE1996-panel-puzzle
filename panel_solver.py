@@ -1,8 +1,10 @@
 from functools import reduce
 from copy import deepcopy
+import math
 from multiprocessing import Pool, cpu_count
 
 # Predefined commands (remain unchanged)
+COM_0 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
 COM_1 = [[1, 1, 0], [1, 0, 0], [0, 0, 0]]
 COM_2 = [[1, 1, 1], [0, 1, 0], [0, 0, 0]]
 COM_3 = [[0, 1, 1], [0, 0, 1], [0, 0, 0]]
@@ -14,6 +16,7 @@ COM_8 = [[0, 0, 0], [0, 1, 0], [1, 1, 1]]
 COM_9 = [[0, 0, 0], [0, 0, 1], [0, 1, 1]]
 
 AVAILABLE_COMMANDS = {
+    0: COM_0,
     1: COM_1,
     2: COM_2,
     3: COM_3,
@@ -124,7 +127,7 @@ def find_solutions(*args) -> list:
     return solutions
 
 
-def split(end, steps):
+def make_chunks(end, steps):
     max_length = 10**end - 1
     start = 0
 
@@ -137,12 +140,67 @@ def split(end, steps):
     return (calc_slice(i) for i in range(steps))
 
 
+def clear_apply_toggle(panel: list, command: list) -> list:
+    """
+    Applies command to panel using XOR operation.
+
+    Args:
+        panel (list): Current panel state
+        command (list): Command to apply
+
+    Example:
+        >>> panel = [[1, 0, 1], [0, 1, 1], [0, 0, 1]]
+        >>> apply_toggle(panel, COM_1)
+    """
+    result = deepcopy(panel)
+    for i in range(3):
+        for j in range(3):
+            result[i][j] ^= command[i][j]
+    return result
+
+
+def DP_solving(panel, end_to):
+    dp = [None for _ in range(end_to + 1)]
+    dp[0] = deepcopy(panel)
+
+    solutions = []
+    combination = 1
+    while combination and combination <= end_to:
+        tmp = combination
+
+        testing_panel = None
+        prev_combination_key = tmp // 10
+
+        testing_panel = dp[prev_combination_key]
+
+        new_command = tmp % 10
+
+        testing_panel = clear_apply_toggle(testing_panel, AVAILABLE_COMMANDS[new_command])
+        dp[tmp] = testing_panel
+
+        if testing_panel == TARGET:
+            solutions.append(str(combination)[::-1])
+
+        combination += 1
+
+    return solutions
+
+
+def dp_main():
+    """Main program logic"""
+    panel = read_panel()
+    max_len = read_combination_length()
+    last_number = 10**max_len - 1
+    result = DP_solving(panel, last_number)
+    print(result[0:10])
+
+
 def main():
     """Main program logic"""
     panel = read_panel()
     max_len = read_combination_length()
     step_size = cpu_count()
-    all_combinations = split(max_len, step_size)
+    all_combinations = make_chunks(max_len, step_size)
     with Pool(step_size) as pool:
         result = pool.map(find_solutions, ((deepcopy(panel), start, end) for start, end in all_combinations))
         result = reduce(lambda x, y: x + y, result)
@@ -154,4 +212,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    dp_main()
