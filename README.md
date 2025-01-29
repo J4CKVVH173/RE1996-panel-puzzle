@@ -10,6 +10,7 @@ Each command toggles specific cells using XOR, and the solution brute-forces all
 - **Customizable Combination Length**: Set the maximum length of command sequences to explore (default: 3)
 - **Predefined Commands**: 9 unique commands that toggle specific cell patterns
 - **Brute-Force Algorithm**: Exhaustively checks all valid command combinations to find solutions
+- **Parallelism**: Proper use of big number of courses in parallel
 
 ## Installation
 
@@ -25,7 +26,7 @@ Each command toggles specific cells using XOR, and the solution brute-forces all
    ```
 
 2. Enter the initial panel row by row (3 rows of 0/1 separated by spaces)
-3. Specify the maximum combination length (press Enter to use default value 3)
+3. Specify the maximum combination length (press Enter to use default value 3). Do not use more then 4 on  slow machines. Because complexity is $O(n!)$
 
 *Example input:*
 

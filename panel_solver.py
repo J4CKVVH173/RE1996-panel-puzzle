@@ -1,5 +1,6 @@
-import math
+from functools import reduce
 from copy import deepcopy
+from multiprocessing import Pool, cpu_count
 
 # Predefined commands (remain unchanged)
 COM_1 = [[1, 1, 0], [1, 0, 0], [0, 0, 0]]
@@ -88,7 +89,7 @@ def apply_toggle(panel: list, command: list) -> None:
             panel[i][j] ^= command[i][j]
 
 
-def find_solutions(initial_panel: list, max_length: int) -> list:
+def find_solutions(*args) -> list:
     """
     Finds all valid combinations to reach target panel.
 
@@ -99,10 +100,13 @@ def find_solutions(initial_panel: list, max_length: int) -> list:
     Returns:
         list: Found valid combinations
     """
-    solutions = []
-    combination = 1
 
-    while int(math.log10(combination)) + 1 <= max_length if combination > 0 else True:
+    initial_panel, start_from, end_to = args[0]
+    solutions = []
+    combination = start_from if start_from else 1
+
+    print(f"\nSearching for solutions form {start_from} to {end_to} ...")
+    while combination and combination <= end_to:
         current_panel = deepcopy(initial_panel)
         temp = combination
 
@@ -113,26 +117,40 @@ def find_solutions(initial_panel: list, max_length: int) -> list:
             temp //= 10
 
         if current_panel == TARGET:
-            solutions.append(str(combination))
+            solutions.append(str(combination)[::-1])
 
         combination += 1
 
     return solutions
 
 
+def split(end, steps):
+    max_length = 10**end - 1
+    start = 0
+
+    def calc_slice(step):
+        nonlocal start
+        old_start = start
+        start = round(max_length / steps) * (step + 1)
+        return (old_start, start)
+
+    return (calc_slice(i) for i in range(steps))
+
+
 def main():
     """Main program logic"""
     panel = read_panel()
     max_len = read_combination_length()
+    step_size = cpu_count()
+    all_combinations = split(max_len, step_size)
+    with Pool(step_size) as pool:
+        result = pool.map(find_solutions, ((deepcopy(panel), start, end) for start, end in all_combinations))
+        result = reduce(lambda x, y: x + y, result)
 
-    print("\nSearching for solutions...")
-    solutions = find_solutions(panel, max_len)
-
-    if solutions:
-        print("\nFound valid combinations:")
-        print(", ".join(solutions[0:10]))
-    else:
-        print("\nNo solutions found")
+    if result:
+        print("\nValid combinations found:")
+        for combination in result[0:10]:
+            print(combination)
 
 
 if __name__ == "__main__":
