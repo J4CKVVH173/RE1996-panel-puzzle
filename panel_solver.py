@@ -1,53 +1,41 @@
 from functools import reduce
 from copy import deepcopy
-import math
 from multiprocessing import Pool, cpu_count
+import argparse
 
-# Predefined commands (remain unchanged)
-COM_0 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-COM_1 = [[1, 1, 0], [1, 0, 0], [0, 0, 0]]
-COM_2 = [[1, 1, 1], [0, 1, 0], [0, 0, 0]]
-COM_3 = [[0, 1, 1], [0, 0, 1], [0, 0, 0]]
-COM_4 = [[1, 0, 0], [1, 1, 0], [1, 0, 0]]
-COM_5 = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
-COM_6 = [[0, 0, 1], [0, 1, 1], [0, 0, 1]]
-COM_7 = [[0, 0, 0], [1, 0, 0], [1, 1, 0]]
-COM_8 = [[0, 0, 0], [0, 1, 0], [1, 1, 1]]
-COM_9 = [[0, 0, 0], [0, 0, 1], [0, 1, 1]]
-
-AVAILABLE_COMMANDS = {
-    0: COM_0,
-    1: COM_1,
-    2: COM_2,
-    3: COM_3,
-    4: COM_4,
-    5: COM_5,
-    6: COM_6,
-    7: COM_7,
-    8: COM_8,
-    9: COM_9,
+# Predefined commands and target configuration
+COMMAND_MAP = {
+    0: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+    1: [[1, 1, 0], [1, 0, 0], [0, 0, 0]],
+    2: [[1, 1, 1], [0, 1, 0], [0, 0, 0]],
+    3: [[0, 1, 1], [0, 0, 1], [0, 0, 0]],
+    4: [[1, 0, 0], [1, 1, 0], [1, 0, 0]],
+    5: [[0, 1, 0], [1, 1, 1], [0, 1, 0]],
+    6: [[0, 0, 1], [0, 1, 1], [0, 0, 1]],
+    7: [[0, 0, 0], [1, 0, 0], [1, 1, 0]],
+    8: [[0, 0, 0], [0, 1, 0], [1, 1, 1]],
+    9: [[0, 0, 0], [0, 0, 1], [0, 1, 1]],
 }
 
-TARGET = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+TARGET_PANEL = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+
+
+def get_user_input():
+    """Collect and return user input for panel configuration and max length."""
+    panel = read_panel()
+    max_len = read_combination_length()
+    return panel, max_len
 
 
 def read_panel() -> list:
-    """
-    Reads initial 3x3 panel configuration from user input.
-
-    Returns:
-        list: 3x3 matrix with 0/1 elements
-
-    Raises:
-        ValueError: On invalid input
-    """
-    print("Enter initial panel (3 rows of 3 digits 0/1 separated by spaces):")
+    """Read 3x3 panel configuration from user input."""
+    print('Enter initial panel (3 rows of 3 digits 0/1 separated by spaces):')
     panel = []
     for i in range(3):
         while True:
-            row = input(f"Row {i+1}: ").strip().split()
+            row = input(f'Row {i+1}: ').strip().split()
             if len(row) != 3 or not all(c in ('0', '1') for c in row):
-                print("Error: enter exactly 3 digits (0 or 1) separated by spaces")
+                print('Error: enter exactly 3 digits (0 or 1) separated by spaces')
                 continue
             panel.append([int(x) for x in row])
             break
@@ -55,162 +43,124 @@ def read_panel() -> list:
 
 
 def read_combination_length() -> int:
-    """
-    Gets maximum combination length from user with default value.
-
-    Returns:
-        int: Positive integer (default: 3)
-    """
+    """Get maximum combination length from user."""
     while True:
-        user_input = input("Maximum combination length [3]: ").strip()
+        user_input = input('Maximum combination length [3]: ').strip()
         if not user_input:
             return 3
         try:
             length = int(user_input)
             if length < 1:
-                print("Error: enter an integer greater than 0")
+                print('Error: enter an integer greater than 0')
                 continue
             return length
         except ValueError:
-            print("Error: enter an integer greater than 0")
+            print('Error: enter an integer greater than 0')
 
 
-def apply_toggle(panel: list, command: list) -> None:
-    """
-    Applies command to panel using XOR operation.
-
-    Args:
-        panel (list): Current panel state
-        command (list): Command to apply
-
-    Example:
-        >>> panel = [[1, 0, 1], [0, 1, 1], [0, 0, 1]]
-        >>> apply_toggle(panel, COM_1)
-    """
-    for i in range(3):
-        for j in range(3):
-            panel[i][j] ^= command[i][j]
+def apply_command(panel: list, command: list) -> list:
+    """Apply command to panel using XOR operation and return new state."""
+    return [
+        [panel[i][j] ^ command[i][j] for j in range(3)]
+        for i in range(3)
+    ]
 
 
-def find_solutions(*args) -> list:
-    """
-    Finds all valid combinations to reach target panel.
-
-    Args:
-        initial_panel (list): Initial panel state
-        max_length (int): Maximum combination length
-
-    Returns:
-        list: Found valid combinations
-    """
-
-    initial_panel, start_from, end_to = args[0]
+def process_combination(args):
+    """Process combination range for multiprocessing."""
+    initial_panel, start, end = args
     solutions = []
-    combination = start_from if start_from else 1
+    current = start if start else 1
 
-    print(f"\nSearching for solutions form {start_from} to {end_to} ...")
-    while combination and combination <= end_to:
-        current_panel = deepcopy(initial_panel)
-        temp = combination
+    while current <= end:
+        temp = current
+        current_state = deepcopy(initial_panel)
 
         while temp > 0:
             digit = temp % 10
-            if digit in AVAILABLE_COMMANDS:
-                apply_toggle(current_panel, AVAILABLE_COMMANDS[digit])
+            current_state = apply_command(current_state, COMMAND_MAP.get(digit, COMMAND_MAP[0]))
             temp //= 10
 
-        if current_panel == TARGET:
-            solutions.append(str(combination)[::-1])
-
-        combination += 1
+        if current_state == TARGET_PANEL:
+            solutions.append(str(current)[::-1])
+        current += 1
 
     return solutions
 
 
-def make_chunks(end, steps):
-    max_length = 10**end - 1
-    start = 0
-
-    def calc_slice(step):
-        nonlocal start
-        old_start = start
-        start = round(max_length / steps) * (step + 1)
-        return (old_start, start)
-
-    return (calc_slice(i) for i in range(steps))
+def generate_chunks(max_length, chunks_count):
+    """Generate ranges for parallel processing."""
+    max_value = 10**max_length - 1
+    chunk_size = max_value // chunks_count
+    return [(i*chunk_size + 1, (i+1)*chunk_size) for i in range(chunks_count)]
 
 
-def clear_apply_toggle(panel: list, command: list) -> list:
-    """
-    Applies command to panel using XOR operation.
-
-    Args:
-        panel (list): Current panel state
-        command (list): Command to apply
-
-    Example:
-        >>> panel = [[1, 0, 1], [0, 1, 1], [0, 0, 1]]
-        >>> apply_toggle(panel, COM_1)
-    """
-    result = deepcopy(panel)
-    for i in range(3):
-        for j in range(3):
-            result[i][j] ^= command[i][j]
-    return result
-
-
-def DP_solving(panel, end_to):
-    dp = [None for _ in range(end_to + 1)]
-    dp[0] = deepcopy(panel)
-
+def dynamic_programming_solver(initial_panel, max_length):
+    """Solve using dynamic programming approach."""
+    max_combination = 10**max_length - 1
+    dp = {0: deepcopy(initial_panel)}
     solutions = []
-    combination = 1
-    while combination and combination <= end_to:
-        tmp = combination
 
-        testing_panel = None
-        prev_combination_key = tmp // 10
+    for combination in range(1, max_combination + 1):
+        prev_key = combination // 10
+        command = combination % 10
 
-        testing_panel = dp[prev_combination_key]
+        if prev_key not in dp:
+            continue
 
-        new_command = tmp % 10
+        new_state = apply_command(dp[prev_key], COMMAND_MAP.get(command, COMMAND_MAP[0]))
+        dp[combination] = new_state
 
-        testing_panel = clear_apply_toggle(testing_panel, AVAILABLE_COMMANDS[new_command])
-        dp[tmp] = testing_panel
-
-        if testing_panel == TARGET:
+        if new_state == TARGET_PANEL:
             solutions.append(str(combination)[::-1])
-
-        combination += 1
 
     return solutions
 
 
-def dp_main():
-    """Main program logic"""
-    panel = read_panel()
-    max_len = read_combination_length()
-    last_number = 10**max_len - 1
-    result = DP_solving(panel, last_number)
-    print(result[0:10])
+def run_multiprocessing_handler():
+    """Run solution using multiprocessing."""
+    panel, max_len = get_user_input()
+    chunks = generate_chunks(max_len, cpu_count())
+
+    with Pool(cpu_count()) as pool:
+        results = pool.map(process_combination, [(deepcopy(panel), s, e) for s, e in chunks])
+        solutions = reduce(lambda x, y: x + y, results)
+
+    print_results(solutions)
 
 
-def main():
-    """Main program logic"""
-    panel = read_panel()
-    max_len = read_combination_length()
-    step_size = cpu_count()
-    all_combinations = make_chunks(max_len, step_size)
-    with Pool(step_size) as pool:
-        result = pool.map(find_solutions, ((deepcopy(panel), start, end) for start, end in all_combinations))
-        result = reduce(lambda x, y: x + y, result)
-
-    if result:
-        print("\nValid combinations found:")
-        for combination in result[0:10]:
-            print(combination)
+def run_dp_handler():
+    """Run solution using dynamic programming."""
+    panel, max_len = get_user_input()
+    solutions = dynamic_programming_solver(panel, max_len)
+    print_results(solutions)
 
 
-if __name__ == "__main__":
-    # main()
-    dp_main()
+def print_results(solutions):
+    """Display found solutions."""
+    if not solutions:
+        print('\nNo valid combinations found')
+        return
+
+    print('\nFirst 10 valid combinations:')
+    for solution in solutions[:10]:
+        print(solution)
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--handler',
+                        choices=['dp', 'multiprocessing'],
+                        default='multiprocessing',
+                        help='Processing handler type (dp/multiprocessing)')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = parse_arguments()
+
+    if args.handler == 'dp':
+        run_dp_handler()
+    else:
+        run_multiprocessing_handler()
